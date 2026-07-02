@@ -1,1 +1,0 @@
-# Issues placeholder - triggering direct issue creation

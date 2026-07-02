@@ -1,0 +1,4 @@
+title,body,labels,assignees,milestone
+Set up project skeleton,Create the initial backend and frontend folder structure.,"enhancement;setup",,MVP
+Add conversation memory store,Persist conversation history so the companion can recall past context.,enhancement,,MVP
+Fix audio playback glitch,Audio occasionally stutters during real-time conversation.,bug,,
