@@ -37,7 +37,7 @@ public sealed record AppSettings(
 
         var connectionString = GetConnectionString(configuration);
 
-        if (!double.TryParse(temperatureText, out var temperature) || temperature < 0.0 || temperature > 2.0)
+        if (!double.TryParse(temperatureText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var temperature) || temperature < 0.0 || temperature > 2.0)
         {
             throw new InvalidOperationException("OpenAI temperature must be a number between 0.0 and 2.0.");
         }
