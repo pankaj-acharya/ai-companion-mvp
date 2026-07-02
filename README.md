@@ -1,21 +1,19 @@
 # AI Companion MVP - Core Conversational Engine
 
 ## Prerequisites
-- Python 3.11+
+- .NET 8 SDK
 
 ## Setup
-1. Install dependencies:
-   - `python -m pip install -e .[dev]`
-2. Create environment file:
+1. Create environment file:
    - `Copy-Item .env.example .env`
-3. Set `OPENAI_API_KEY` in `.env`.
+2. Set `OPENAI_API_KEY` in `.env`.
 
 ## Run locally
-- `python -m uvicorn app.main:app --reload`
+- `dotnet run --project src/AiCompanion.Api --launch-profile http`
+
+## API docs
+- `http://localhost:8000/docs`
 
 ## Run tests
-- `python -m pytest`
-
-## Performance smoke
-- `python tools/perf_smoke.py`
+- `dotnet test AiCompanionMvp.sln`
 
