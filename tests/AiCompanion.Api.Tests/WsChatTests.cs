@@ -15,19 +15,28 @@ public sealed class WsChatTests(ApiWebApplicationFactory factory) : IClassFixtur
         await webSocket.SendAsync(Encoding.UTF8.GetBytes(payload), WebSocketMessageType.Text, true, CancellationToken.None);
 
         var messages = new List<JsonDocument>();
-        for (var index = 0; index < 4; index += 1)
+        try
         {
-            messages.Add(await ReceiveJsonAsync(webSocket));
-        }
+            for (var index = 0; index < 4; index += 1)
+            {
+                messages.Add(await ReceiveJsonAsync(webSocket));
+            }
 
-        Assert.Equal("done", messages[^1].RootElement.GetProperty("type").GetString());
-        Assert.True(messages[^1].RootElement.GetProperty("tokens_used").GetInt32() > 0);
-        Assert.All(messages, document =>
+            Assert.Equal("done", messages[^1].RootElement.GetProperty("type").GetString());
+            Assert.True(messages[^1].RootElement.GetProperty("tokens_used").GetInt32() > 0);
+            Assert.All(messages, document =>
+            {
+                var type = document.RootElement.GetProperty("type").GetString();
+                Assert.Contains(type, new[] { "token", "done" });
+            });
+        }
+        finally
         {
-            var type = document.RootElement.GetProperty("type").GetString();
-            Assert.Contains(type, new[] { "token", "done" });
-        });
-    }
+            foreach (var document in messages)
+            {
+                document.Dispose();
+            }
+        }
 
     [Fact]
     public async Task WebSocketRejectsMissingToken()
