@@ -77,7 +77,7 @@ app.MapPost("/api/v1/chat", async Task<IResult> (
 	var conversation = await GetOrCreateConversationAsync(db, payload.SessionId, userId.userId!, cancellationToken);
 	if (!string.Equals(conversation.UserId, userId.userId, StringComparison.Ordinal))
 	{
-		return Results.StatusCode(StatusCodes.Status403Forbidden);
+		return Results.Json(new { detail = "Session belongs to a different user." }, statusCode: StatusCodes.Status403Forbidden);
 	}
 
 	AddMessage(db, payload.SessionId, "user", payload.Message);
