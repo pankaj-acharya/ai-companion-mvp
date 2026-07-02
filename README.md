@@ -31,7 +31,7 @@ Set up project skeleton,Create the initial folder structure.,"enhancement;setup"
 Fix audio playback glitch,Audio stutters during conversation.,bug,,
 ```
 
-### Behaviour
+### Behavior
 
 - Empty rows are skipped and surrounding whitespace is trimmed.
 - Rows missing a `title` are reported and skipped.
