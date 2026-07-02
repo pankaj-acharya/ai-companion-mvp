@@ -322,6 +322,7 @@ static (string? userId, IResult? errorResult) TryGetUserIdFromAuthorizationHeade
 
 static async Task<string?> ReceiveTextAsync(WebSocket socket, CancellationToken cancellationToken)
 {
+	const int maxMessageBytes = 64 * 1024;
 	var buffer = new byte[4096];
 	using var payload = new MemoryStream();
 
@@ -330,6 +331,18 @@ static async Task<string?> ReceiveTextAsync(WebSocket socket, CancellationToken 
 		var result = await socket.ReceiveAsync(buffer, cancellationToken);
 		if (result.MessageType == WebSocketMessageType.Close)
 		{
+			return null;
+		}
+
+		if (result.MessageType != WebSocketMessageType.Text)
+		{
+			await socket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Only text messages are supported.", cancellationToken);
+			return null;
+		}
+
+		if (payload.Length + result.Count > maxMessageBytes)
+		{
+			await socket.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Payload too large.", cancellationToken);
 			return null;
 		}
 
