@@ -275,7 +275,7 @@ static Dictionary<string, string[]>? Validate<T>(T payload)
 	}
 
 	return validationResults
-		.GroupBy(result => result.MemberNames.FirstOrDefault() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+		.GroupBy(result => JsonNamingPolicy.SnakeCaseLower.ConvertName(result.MemberNames.FirstOrDefault() ?? string.Empty), StringComparer.OrdinalIgnoreCase)
 		.ToDictionary(
 			group => group.Key,
 			group => group.Select(result => result.ErrorMessage ?? "Validation failed.").Distinct(StringComparer.Ordinal).ToArray(),
