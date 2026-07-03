@@ -7,15 +7,26 @@ public sealed record AppSettings(
     string Model,
     double Temperature,
     int MaxTokens,
+    bool UseMockLlm,
     string ConnectionString)
 {
     public static AppSettings FromConfiguration(IConfiguration configuration)
     {
+        var useMockText = FirstNonEmpty(
+            configuration["OpenAI:UseMock"],
+            configuration["OPENAI_USE_MOCK"],
+            "false");
+
+        if (!bool.TryParse(useMockText, out var useMockLlm))
+        {
+            throw new InvalidOperationException("OpenAI use mock flag must be either true or false.");
+        }
+
         var apiKey = FirstNonEmpty(
             configuration["OpenAI:ApiKey"],
             configuration["OPENAI_API_KEY"]);
 
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (!useMockLlm && string.IsNullOrWhiteSpace(apiKey))
         {
             throw new InvalidOperationException("OPENAI_API_KEY or OpenAI:ApiKey must be configured.");
         }
@@ -47,7 +58,7 @@ public sealed record AppSettings(
             throw new InvalidOperationException("OpenAI max tokens must be between 1 and 8192.");
         }
 
-        return new AppSettings(apiKey.Trim(), model, temperature, maxTokens, connectionString);
+        return new AppSettings(apiKey.Trim(), model, temperature, maxTokens, useMockLlm, connectionString);
     }
 
     public static string GetConnectionString(IConfiguration configuration)

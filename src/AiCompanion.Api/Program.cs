@@ -31,9 +31,19 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 	var configuration = sp.GetRequiredService<IConfiguration>();
 	options.UseSqlite(AppSettings.GetConnectionString(configuration));
 });
-builder.Services.AddHttpClient<ILlmClient, OpenAiLlmClient>(client =>
+builder.Services.AddHttpClient<OpenAiLlmClient>(client =>
 {
 	client.BaseAddress = new Uri("https://api.openai.com/v1/");
+});
+builder.Services.AddSingleton<ILlmClient>(sp =>
+{
+	var settings = sp.GetRequiredService<AppSettings>();
+	if (settings.UseMockLlm)
+	{
+		return new MockLlmClient();
+	}
+
+	return sp.GetRequiredService<OpenAiLlmClient>();
 });
 
 var app = builder.Build();
@@ -53,6 +63,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.MapGet("/", () =>
+	Results.Ok(new
+	{
+		name = "AI Companion MVP API",
+		docs = "/docs",
+		health = "/health",
+		mock_mode = app.Services.GetRequiredService<AppSettings>().UseMockLlm,
+	}));
 
 app.MapPost("/api/v1/chat", async Task<IResult> (
 	ChatRequest payload,
