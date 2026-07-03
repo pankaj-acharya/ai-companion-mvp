@@ -7,4 +7,9 @@ bin/
 obj/
 TestResults/
 .vs/
+.vscode/launch.json
+.vscode/tasks.json
+task.json
+*.db-shm
+*.db-wal
 
