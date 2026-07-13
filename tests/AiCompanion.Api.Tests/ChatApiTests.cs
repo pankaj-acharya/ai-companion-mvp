@@ -1,5 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
+using System.Text.Json;
+=======
+>>>>>>> main
 using AiCompanion.Api.Contracts;
 
 namespace AiCompanion.Api.Tests;
@@ -9,6 +13,23 @@ public sealed class ChatApiTests(ApiWebApplicationFactory factory) : IClassFixtu
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
+    public async Task RootEndpointReturnsApiInfo()
+    {
+        using var response = await _client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Object, body.ValueKind);
+        Assert.Equal("AI Companion MVP API", body.GetProperty("name").GetString());
+        Assert.Equal("/docs", body.GetProperty("docs").GetString());
+        Assert.Equal("/health", body.GetProperty("health").GetString());
+        Assert.True(body.GetProperty("mock_mode").GetBoolean());
+    }
+
+    [Fact]
+=======
+>>>>>>> main
     public async Task ChatEndpointHappyPath()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/chat")

@@ -7,4 +7,12 @@ bin/
 obj/
 TestResults/
 .vs/
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
+.vscode/launch.json
+.vscode/tasks.json
+task.json
+*.db-shm
+*.db-wal
+=======
+>>>>>>> main
 
