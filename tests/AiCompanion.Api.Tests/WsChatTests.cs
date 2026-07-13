@@ -15,6 +15,7 @@ public sealed class WsChatTests(ApiWebApplicationFactory factory) : IClassFixtur
         await webSocket.SendAsync(Encoding.UTF8.GetBytes(payload), WebSocketMessageType.Text, true, CancellationToken.None);
 
         var messages = new List<JsonDocument>();
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
         for (var index = 0; index < 4; index += 1)
         {
             messages.Add(await ReceiveJsonAsync(webSocket));
@@ -28,6 +29,30 @@ public sealed class WsChatTests(ApiWebApplicationFactory factory) : IClassFixtur
             Assert.Contains(type, new[] { "token", "done" });
         });
     }
+=======
+        try
+        {
+            for (var index = 0; index < 4; index += 1)
+            {
+                messages.Add(await ReceiveJsonAsync(webSocket));
+            }
+
+            Assert.Equal("done", messages[^1].RootElement.GetProperty("type").GetString());
+            Assert.True(messages[^1].RootElement.GetProperty("tokens_used").GetInt32() > 0);
+            Assert.All(messages, document =>
+            {
+                var type = document.RootElement.GetProperty("type").GetString();
+                Assert.Contains(type, new[] { "token", "done" });
+            });
+        }
+        finally
+        {
+            foreach (var document in messages)
+            {
+                document.Dispose();
+            }
+        }
+>>>>>>> main
 
     [Fact]
     public async Task WebSocketRejectsMissingToken()

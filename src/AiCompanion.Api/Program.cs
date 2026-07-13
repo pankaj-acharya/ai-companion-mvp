@@ -31,6 +31,7 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 	var configuration = sp.GetRequiredService<IConfiguration>();
 	options.UseSqlite(AppSettings.GetConnectionString(configuration));
 });
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
 builder.Services.AddHttpClient<OpenAiLlmClient>(client =>
 {
 	client.BaseAddress = new Uri("https://api.openai.com/v1/");
@@ -50,6 +51,15 @@ var app = builder.Build();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+=======
+builder.Services.AddHttpClient<ILlmClient, OpenAiLlmClient>(client =>
+{
+	client.BaseAddress = new Uri("https://api.openai.com/v1/");
+});
+
+var app = builder.Build();
+
+>>>>>>> main
 app.UseWebSockets();
 app.UseSwagger();
 app.UseSwaggerUI(options =>
@@ -66,6 +76,7 @@ using (var scope = app.Services.CreateScope())
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
 app.MapGet("/", () =>
 	Results.Ok(new
 	{
@@ -78,6 +89,8 @@ app.MapGet("/", () =>
 
 app.MapGet("/app", () => Results.File("wwwroot/app/index.html", "text/html"));
 
+=======
+>>>>>>> main
 app.MapPost("/api/v1/chat", async Task<IResult> (
 	ChatRequest payload,
 	HttpContext httpContext,
@@ -101,7 +114,11 @@ app.MapPost("/api/v1/chat", async Task<IResult> (
 	var conversation = await GetOrCreateConversationAsync(db, payload.SessionId, userId.userId!, cancellationToken);
 	if (!string.Equals(conversation.UserId, userId.userId, StringComparison.Ordinal))
 	{
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
 		return Results.StatusCode(StatusCodes.Status403Forbidden);
+=======
+		return Results.Json(new { detail = "Session belongs to a different user." }, statusCode: StatusCodes.Status403Forbidden);
+>>>>>>> main
 	}
 
 	AddMessage(db, payload.SessionId, "user", payload.Message);
@@ -299,7 +316,11 @@ static Dictionary<string, string[]>? Validate<T>(T payload)
 	}
 
 	return validationResults
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
 		.GroupBy(result => result.MemberNames.FirstOrDefault() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+=======
+		.GroupBy(result => JsonNamingPolicy.SnakeCaseLower.ConvertName(result.MemberNames.FirstOrDefault() ?? string.Empty), StringComparer.OrdinalIgnoreCase)
+>>>>>>> main
 		.ToDictionary(
 			group => group.Key,
 			group => group.Select(result => result.ErrorMessage ?? "Validation failed.").Distinct(StringComparer.Ordinal).ToArray(),
@@ -346,6 +367,10 @@ static (string? userId, IResult? errorResult) TryGetUserIdFromAuthorizationHeade
 
 static async Task<string?> ReceiveTextAsync(WebSocket socket, CancellationToken cancellationToken)
 {
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
+=======
+	const int maxMessageBytes = 64 * 1024;
+>>>>>>> main
 	var buffer = new byte[4096];
 	using var payload = new MemoryStream();
 
@@ -357,6 +382,21 @@ static async Task<string?> ReceiveTextAsync(WebSocket socket, CancellationToken 
 			return null;
 		}
 
+<<<<<<< pankaj-acharya-epic-core-conversational-engine
+=======
+		if (result.MessageType != WebSocketMessageType.Text)
+		{
+			await socket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Only text messages are supported.", cancellationToken);
+			return null;
+		}
+
+		if (payload.Length + result.Count > maxMessageBytes)
+		{
+			await socket.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Payload too large.", cancellationToken);
+			return null;
+		}
+
+>>>>>>> main
 		payload.Write(buffer, 0, result.Count);
 		if (result.EndOfMessage)
 		{
