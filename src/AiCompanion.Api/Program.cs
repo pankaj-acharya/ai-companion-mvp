@@ -76,7 +76,7 @@ app.MapGet("/", () =>
 		mock_mode = app.Services.GetRequiredService<AppSettings>().UseMockLlm,
 	}));
 
-app.MapGet("/app", () => Results.Redirect("/app/"));
+app.MapGet("/app", () => Results.File("wwwroot/app/index.html", "text/html"));
 
 app.MapPost("/api/v1/chat", async Task<IResult> (
 	ChatRequest payload,
