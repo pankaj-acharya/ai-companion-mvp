@@ -15,6 +15,11 @@
 ## API docs
 - `http://localhost:8000/docs`
 
+## Web UI
+- `http://localhost:8000/app/`
+- Enter any `user_id` and `session_id` values to exercise the local MVP flows.
+- Toggle streaming mode to use the WebSocket endpoint instead of the REST chat endpoint.
+
 ## Run tests
 - `dotnet test AiCompanionMvp.sln`
 

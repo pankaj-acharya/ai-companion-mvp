@@ -48,6 +48,8 @@ builder.Services.AddSingleton<ILlmClient>(sp =>
 
 var app = builder.Build();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseWebSockets();
 app.UseSwagger();
 app.UseSwaggerUI(options =>
@@ -68,10 +70,13 @@ app.MapGet("/", () =>
 	Results.Ok(new
 	{
 		name = "AI Companion MVP API",
+		ui = "/app/",
 		docs = "/docs",
 		health = "/health",
 		mock_mode = app.Services.GetRequiredService<AppSettings>().UseMockLlm,
 	}));
+
+app.MapGet("/app", () => Results.Redirect("/app/"));
 
 app.MapPost("/api/v1/chat", async Task<IResult> (
 	ChatRequest payload,
