@@ -1,9 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-<<<<<<< pankaj-acharya-epic-core-conversational-engine
 using System.Text.Json;
-=======
->>>>>>> main
 using AiCompanion.Api.Contracts;
 
 namespace AiCompanion.Api.Tests;
@@ -13,7 +10,6 @@ public sealed class ChatApiTests(ApiWebApplicationFactory factory) : IClassFixtu
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-<<<<<<< pankaj-acharya-epic-core-conversational-engine
     public async Task RootEndpointReturnsApiInfo()
     {
         using var response = await _client.GetAsync("/");
@@ -28,8 +24,6 @@ public sealed class ChatApiTests(ApiWebApplicationFactory factory) : IClassFixtu
     }
 
     [Fact]
-=======
->>>>>>> main
     public async Task ChatEndpointHappyPath()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/chat")
