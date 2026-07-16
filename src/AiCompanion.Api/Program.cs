@@ -31,9 +31,10 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 	var configuration = sp.GetRequiredService<IConfiguration>();
 	options.UseSqlite(AppSettings.GetConnectionString(configuration));
 });
-builder.Services.AddHttpClient<OpenAiLlmClient>(client =>
+builder.Services.AddHttpClient<OpenAiLlmClient>((sp, client) =>
 {
-	client.BaseAddress = new Uri("https://api.openai.com/v1/");
+	var settings = sp.GetRequiredService<AppSettings>();
+	client.BaseAddress = new Uri(settings.BaseUrl);
 });
 builder.Services.AddSingleton<ILlmClient>(sp =>
 {
@@ -47,6 +48,14 @@ builder.Services.AddSingleton<ILlmClient>(sp =>
 });
 
 var app = builder.Build();
+
+var startupSettings = app.Services.GetRequiredService<AppSettings>();
+app.Logger.LogInformation(
+	"LLM provider mode: {LlmMode}; provider: {Provider}; base_url: {BaseUrl}; model: {Model}",
+	startupSettings.UseMockLlm ? "Mock" : "OpenAI",
+	startupSettings.Provider,
+	startupSettings.BaseUrl,
+	startupSettings.Model);
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -74,6 +83,8 @@ app.MapGet("/", () =>
 		docs = "/docs",
 		health = "/health",
 		mock_mode = app.Services.GetRequiredService<AppSettings>().UseMockLlm,
+		llm_provider = app.Services.GetRequiredService<AppSettings>().Provider,
+		llm_base_url = app.Services.GetRequiredService<AppSettings>().BaseUrl,
 	}));
 
 app.MapGet("/app", () => Results.File("wwwroot/app/index.html", "text/html"));
@@ -98,6 +109,7 @@ app.MapPost("/api/v1/chat", async Task<IResult> (
 	}
 
 	var persona = string.IsNullOrWhiteSpace(payload.PersonaId) ? LlmDefaults.DefaultPersona : payload.PersonaId;
+	var modelId = string.IsNullOrWhiteSpace(payload.ModelId) ? null : payload.ModelId;
 	var conversation = await GetOrCreateConversationAsync(db, payload.SessionId, userId.userId!, cancellationToken);
 	if (!string.Equals(conversation.UserId, userId.userId, StringComparison.Ordinal))
 	{
@@ -105,7 +117,28 @@ app.MapPost("/api/v1/chat", async Task<IResult> (
 	}
 
 	AddMessage(db, payload.SessionId, "user", payload.Message);
-	var result = await llm.GenerateAsync(payload.Message, persona, cancellationToken);
+	LlmResult result;
+	try
+	{
+		if (llm is OpenAiLlmClient openAiLlm)
+		{
+			result = await openAiLlm.GenerateAsync(payload.Message, persona, cancellationToken, modelId);
+		}
+		else
+		{
+			result = await llm.GenerateAsync(payload.Message, persona, cancellationToken);
+		}
+	}
+	catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+	{
+		app.Logger.LogWarning(ex, "LLM provider rate limited chat request for session {SessionId}", payload.SessionId);
+		return Results.Json(new { detail = "LLM provider rate limit reached. Please retry in a few seconds." }, statusCode: StatusCodes.Status429TooManyRequests);
+	}
+	catch (HttpRequestException ex)
+	{
+		app.Logger.LogWarning(ex, "LLM provider request failed for session {SessionId}", payload.SessionId);
+		return Results.Json(new { detail = "LLM provider request failed. Please try again shortly." }, statusCode: StatusCodes.Status502BadGateway);
+	}
 	AddMessage(db, payload.SessionId, "assistant", result.Text);
 	conversation.UpdatedAt = DateTimeOffset.UtcNow;
 	await db.SaveChangesAsync(cancellationToken);
@@ -237,15 +270,35 @@ app.Map("/ws/chat/{sessionId}", async (HttpContext context, string sessionId, Ap
 		}
 
 		var persona = string.IsNullOrWhiteSpace(payload.PersonaId) ? LlmDefaults.DefaultPersona : payload.PersonaId;
+		var modelId = string.IsNullOrWhiteSpace(payload.ModelId) ? null : payload.ModelId;
 		AddMessage(db, sessionId, "user", payload.Message);
 
 		var tokenCount = 0;
 		var chunks = new StringBuilder();
-		await foreach (var chunk in llm.StreamGenerateAsync(payload.Message, persona, context.RequestAborted))
+		try
 		{
-			tokenCount += 1;
-			chunks.Append(chunk);
-			await SendJsonAsync(webSocket, new { type = "token", content = chunk }, jsonOptions.Value.SerializerOptions, context.RequestAborted);
+			var stream = llm is OpenAiLlmClient openAiLlm
+				? openAiLlm.StreamGenerateAsync(payload.Message, persona, context.RequestAborted, modelId)
+				: llm.StreamGenerateAsync(payload.Message, persona, context.RequestAborted);
+
+			await foreach (var chunk in stream)
+			{
+				tokenCount += 1;
+				chunks.Append(chunk);
+				await SendJsonAsync(webSocket, new { type = "token", content = chunk }, jsonOptions.Value.SerializerOptions, context.RequestAborted);
+			}
+		}
+		catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+		{
+			app.Logger.LogWarning(ex, "LLM provider rate limited websocket chat for session {SessionId}", sessionId);
+			await SendJsonAsync(webSocket, new { type = "error", detail = new[] { "LLM provider rate limit reached. Please retry in a few seconds." } }, jsonOptions.Value.SerializerOptions, context.RequestAborted);
+			continue;
+		}
+		catch (HttpRequestException ex)
+		{
+			app.Logger.LogWarning(ex, "LLM provider request failed over websocket for session {SessionId}", sessionId);
+			await SendJsonAsync(webSocket, new { type = "error", detail = new[] { "LLM provider request failed. Please try again shortly." } }, jsonOptions.Value.SerializerOptions, context.RequestAborted);
+			continue;
 		}
 
 		AddMessage(db, sessionId, "assistant", chunks.ToString().Trim());

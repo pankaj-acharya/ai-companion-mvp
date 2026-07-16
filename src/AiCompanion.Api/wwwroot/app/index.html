@@ -13,18 +13,10 @@
 <body>
     <div class="shell container-xxl py-4 py-lg-5">
         <header class="hero-panel mb-4 mb-lg-5">
-            <div class="d-flex flex-column flex-lg-row justify-content-between gap-4 align-items-lg-center">
+            <div class="hero-banner d-flex flex-column gap-3 justify-content-end">
                 <div>
                     <p class="eyebrow mb-2">AI Companion MVP</p>
-                    <h1 class="display-title mb-3">Simple conversational workspace for desktop first, responsive by default.</h1>
-                    <p class="hero-copy mb-0">Use the REST chat API for request-response interactions or switch to streaming mode to exercise the WebSocket endpoint against the same backend.</p>
-                </div>
-                <div class="hero-stat card shadow-sm border-0">
-                    <div class="card-body">
-                        <div class="text-uppercase small text-secondary mb-2">Current target</div>
-                        <div class="fs-4 fw-semibold" id="apiBaseLabel">Same-origin API</div>
-                        <div class="small text-secondary">Responsive Bootstrap layout, tuned for desktop workflows.</div>
-                    </div>
+                    <h1 class="display-title mb-0">AI Companion</h1>
                 </div>
             </div>
         </header>
@@ -49,12 +41,51 @@
                             </div>
                             <div>
                                 <label for="personaId" class="form-label">Persona</label>
-                                <input id="personaId" name="personaId" class="form-control" placeholder="Supportive Friend">
-                                <div class="form-text">Leave blank to use the API default persona.</div>
+                                <select id="personaId" name="personaId" class="form-select">
+                                    <option value="">Default from server config</option>
+                                    <option value="Supportive Friend">Supportive Friend</option>
+                                    <option value="Productivity Coach">Productivity Coach</option>
+                                    <option value="Career Mentor">Career Mentor</option>
+                                    <option value="Creative Brainstormer">Creative Brainstormer</option>
+                                    <option value="Calm Wellness Buddy">Calm Wellness Buddy</option>
+                                </select>
+                                <div class="form-text">Selected persona is sent as persona_id to the backend so model responses follow that conversational context.</div>
+                                <div id="personaTip" class="persona-tip small mt-2" role="note"></div>
+                            </div>
+                            <div>
+                                <label for="modelId" class="form-label">Model</label>
+                                <select id="modelId" name="modelId" class="form-select">
+                                    <option value="">Default from server config</option>
+                                    <optgroup label="GPT-5 family">
+                                        <option value="gpt-5">gpt-5</option>
+                                        <option value="gpt-5-mini">gpt-5-mini</option>
+                                        <option value="gpt-5-nano">gpt-5-nano</option>
+                                    </optgroup>
+                                    <optgroup label="GPT-4.1 family">
+                                        <option value="gpt-4.1">gpt-4.1</option>
+                                        <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                                        <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+                                    </optgroup>
+                                    <optgroup label="GPT-4o family">
+                                        <option value="gpt-4o">gpt-4o</option>
+                                        <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                    </optgroup>
+                                    <optgroup label="Reasoning (o-series)">
+                                        <option value="o4-mini">o4-mini</option>
+                                        <option value="o3">o3</option>
+                                        <option value="o3-mini">o3-mini</option>
+                                    </optgroup>
+                                </select>
+                                <div class="form-text">Pick a model per request to compare responses. Availability depends on your configured provider account.</div>
                             </div>
                             <div class="form-check form-switch pt-1">
                                 <input class="form-check-input" type="checkbox" role="switch" id="streamMode">
                                 <label class="form-check-label" for="streamMode">Use WebSocket streaming</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="debugMode">
+                                <label class="form-check-label" for="debugMode">Enable debug console logs</label>
+                                <div class="form-text">When enabled, raw API and WebSocket JSON payloads are logged in browser dev tools.</div>
                             </div>
                             <div class="d-grid gap-2 d-sm-flex">
                                 <button type="button" class="btn btn-dark flex-fill" id="loadHistoryButton">Load History</button>
@@ -111,7 +142,7 @@
                             <label for="messageInput" class="form-label">Message</label>
                             <textarea id="messageInput" name="message" class="form-control mb-3" rows="4" maxlength="8000" placeholder="Type a message for the companion" required></textarea>
                             <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-end">
-                                <div class="text-secondary small">The UI sends bearer auth using the entered user ID and can stream replies over WebSocket for the same session.</div>
+                                <div class="text-secondary small">Press Enter to send. Use Shift+Enter for a new line. The UI sends bearer auth using the entered user ID and can stream replies over WebSocket for the same session.</div>
                                 <div class="d-grid d-md-flex gap-2">
                                     <button type="submit" class="btn btn-primary px-4" id="sendButton">Send message</button>
                                 </div>

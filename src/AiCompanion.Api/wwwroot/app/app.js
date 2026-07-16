@@ -1,7 +1,7 @@
 const elements = {
-    apiBaseLabel: document.getElementById("apiBaseLabel"),
     chatForm: document.getElementById("chatForm"),
     clearMessagesButton: document.getElementById("clearMessagesButton"),
+    debugMode: document.getElementById("debugMode"),
     loadHistoryButton: document.getElementById("loadHistoryButton"),
     messageInput: document.getElementById("messageInput"),
     messages: document.getElementById("messages"),
@@ -10,7 +10,9 @@ const elements = {
     metaTokens: document.getElementById("metaTokens"),
     metaTransport: document.getElementById("metaTransport"),
     modeBadge: document.getElementById("modeBadge"),
+    modelId: document.getElementById("modelId"),
     personaId: document.getElementById("personaId"),
+    personaTip: document.getElementById("personaTip"),
     sendButton: document.getElementById("sendButton"),
     sessionId: document.getElementById("sessionId"),
     statusBanner: document.getElementById("statusBanner"),
@@ -19,18 +21,42 @@ const elements = {
     userId: document.getElementById("userId")
 };
 
-elements.apiBaseLabel.textContent = window.location.origin;
+const DEBUG_MODE_STORAGE_KEY = "ai-companion-debug-mode";
 
-initialize();
+const PERSONA_TIPS = {
+    "": "Tip: Use server default persona for consistent baseline behavior across model comparisons.",
+    "Supportive Friend": "Supportive Friend: best for empathetic daily check-ins and encouragement.",
+    "Productivity Coach": "Productivity Coach: best for action plans, prioritization, and accountability.",
+    "Career Mentor": "Career Mentor: best for growth plans, role prep, and interview-style guidance.",
+    "Creative Brainstormer": "Creative Brainstormer: best for idea generation, variations, and naming explorations.",
+    "Calm Wellness Buddy": "Calm Wellness Buddy: best for low-stress reflective conversations and grounding prompts."
+};
+
+const TOOLING_TIP = "Tooling tip: turn on \"Enable debug console logs\" to inspect raw request and response payloads while tuning personas.";
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize);
+} else {
+    initialize();
+}
 
 function initialize() {
+    if (!hasRequiredElements()) {
+        return;
+    }
+
+    loadDebugMode();
     setStatus("Ready.", "secondary");
     setEmptyState();
     syncSessionMeta();
     updateModeLabel();
+    updatePersonaTip();
 
     elements.streamMode.addEventListener("change", updateModeLabel);
+    elements.personaId.addEventListener("change", updatePersonaTip);
+    elements.debugMode.addEventListener("change", handleDebugModeChange);
     elements.sessionId.addEventListener("input", syncSessionMeta);
+    elements.messageInput.addEventListener("keydown", handleComposerKeydown);
     elements.clearMessagesButton.addEventListener("click", () => {
         elements.messages.innerHTML = "";
         setEmptyState();
@@ -40,6 +66,37 @@ function initialize() {
     });
     elements.loadHistoryButton.addEventListener("click", loadHistory);
     elements.chatForm.addEventListener("submit", submitMessage);
+}
+
+function loadDebugMode() {
+    const storedValue = window.localStorage.getItem(DEBUG_MODE_STORAGE_KEY);
+    elements.debugMode.checked = storedValue === "true";
+}
+
+function handleDebugModeChange() {
+    window.localStorage.setItem(DEBUG_MODE_STORAGE_KEY, String(elements.debugMode.checked));
+
+    if (elements.debugMode.checked) {
+        console.debug("[AI Companion] Debug console logging enabled.");
+    }
+}
+
+function isDebugModeEnabled() {
+    return elements.debugMode.checked;
+}
+
+function handleComposerKeydown(event) {
+    if (event.key !== "Enter" || event.shiftKey) {
+        return;
+    }
+
+    event.preventDefault();
+    if (typeof elements.chatForm.requestSubmit === "function") {
+        elements.chatForm.requestSubmit();
+        return;
+    }
+
+    elements.chatForm.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
 }
 
 function updateModeLabel() {
@@ -104,16 +161,27 @@ async function sendRestMessage(config, message) {
         body: JSON.stringify({
             session_id: config.sessionId,
             message,
-            persona_id: config.personaId || undefined
+            persona_id: config.personaId || undefined,
+            model_id: config.modelId || undefined
         })
     });
 
     const body = await readJson(response);
+    logJsonDebug("REST /api/v1/chat raw response", body);
     if (!response.ok) {
         throw new Error(extractApiError(body, "Chat request failed."));
     }
 
-    appendMessage({ role: "assistant", content: body.response, createdAt: body.created_at });
+    const assistantText = typeof body?.response === "string" ? body.response : "";
+    if (!assistantText.trim()) {
+        const warningMessage = "REST call succeeded (200) but assistant text was empty. Check console debug logs for raw JSON.";
+        appendMessage({ role: "system", content: warningMessage, createdAt: new Date().toISOString() });
+        elements.metaTokens.textContent = String(body?.tokens_used ?? "-");
+        setStatus(warningMessage, "warning");
+        return;
+    }
+
+    appendMessage({ role: "assistant", content: assistantText, createdAt: body.created_at });
     elements.metaTokens.textContent = String(body.tokens_used ?? "-");
     setStatus("REST response received.", "success");
 }
@@ -137,12 +205,14 @@ async function sendStreamingMessage(config, message) {
         socket.addEventListener("open", () => {
             socket.send(JSON.stringify({
                 message,
-                persona_id: config.personaId || undefined
+                persona_id: config.personaId || undefined,
+                model_id: config.modelId || undefined
             }));
         });
 
         socket.addEventListener("message", event => {
             const payload = JSON.parse(event.data);
+            logJsonDebug("WebSocket /ws/chat raw message", payload);
             if (payload.type === "token") {
                 assistantMessage.querySelector(".message-content").textContent += payload.content;
                 scrollMessagesToBottom();
@@ -258,6 +328,10 @@ function setBusy(isBusy) {
 }
 
 function setStatus(message, tone) {
+    if (!elements.statusBanner) {
+        return;
+    }
+
     elements.statusBanner.className = `alert alert-${tone} mb-0`;
     elements.statusBanner.textContent = message;
 }
@@ -267,6 +341,7 @@ function readConfig() {
         userId: elements.userId.value.trim(),
         sessionId: elements.sessionId.value.trim(),
         personaId: elements.personaId.value.trim(),
+        modelId: elements.modelId.value.trim(),
         streaming: elements.streamMode.checked
     };
 }
@@ -274,10 +349,36 @@ function readConfig() {
 async function readJson(response) {
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
+        debugLog("[AI Companion] Non-JSON response body skipped.");
         return null;
     }
 
     return await response.json();
+}
+
+function logJsonDebug(label, payload) {
+    if (!isDebugModeEnabled()) {
+        return;
+    }
+
+    if (payload == null) {
+        console.debug(`[AI Companion] ${label}: null`);
+        return;
+    }
+
+    try {
+        console.debug(`[AI Companion] ${label}:\n${JSON.stringify(payload, null, 2)}`);
+    } catch {
+        console.debug(`[AI Companion] ${label}:`, payload);
+    }
+}
+
+function debugLog(message) {
+    if (!isDebugModeEnabled()) {
+        return;
+    }
+
+    console.debug(message);
 }
 
 function extractApiError(body, fallback) {
@@ -312,4 +413,45 @@ function formatError(error) {
 
 function toTitleCase(value) {
     return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function updatePersonaTip() {
+    if (!elements.personaTip || !elements.personaId) {
+        return;
+    }
+
+    const selectedPersona = elements.personaId.value;
+    const personaTip = PERSONA_TIPS[selectedPersona] ?? PERSONA_TIPS[""];
+    elements.personaTip.textContent = `${personaTip} ${TOOLING_TIP}`;
+}
+
+function hasRequiredElements() {
+    const requiredKeys = [
+        "chatForm",
+        "clearMessagesButton",
+        "debugMode",
+        "loadHistoryButton",
+        "messageInput",
+        "messages",
+        "metaHistoryCount",
+        "metaSession",
+        "metaTokens",
+        "metaTransport",
+        "modeBadge",
+        "modelId",
+        "personaId",
+        "sendButton",
+        "sessionId",
+        "streamMode",
+        "template",
+        "userId"
+    ];
+
+    const missingKeys = requiredKeys.filter(key => !elements[key]);
+    if (missingKeys.length === 0) {
+        return true;
+    }
+
+    console.error("[AI Companion] Missing required UI elements:", missingKeys.join(", "));
+    return false;
 }

@@ -20,6 +20,8 @@ public sealed class SettingsTests
             .Build();
 
         var settings = AppSettings.FromConfiguration(configuration);
+        Assert.Equal("openai", settings.Provider);
+        Assert.Equal("https://api.openai.com/v1/", settings.BaseUrl);
         Assert.Equal("gpt-4o-mini", settings.Model);
         Assert.Equal(0.5, settings.Temperature);
         Assert.Equal(700, settings.MaxTokens);
@@ -45,5 +47,23 @@ public sealed class SettingsTests
 
         var settings = AppSettings.FromConfiguration(configuration);
         Assert.True(settings.UseMockLlm);
+    }
+
+    [Fact]
+    public void SettingsAllowMissingApiKeyForOllama()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LLM_PROVIDER"] = "ollama",
+                ["LLM_BASE_URL"] = "http://localhost:11434/v1/",
+                ["OPENAI_MODEL"] = "llama3.1",
+            })
+            .Build();
+
+        var settings = AppSettings.FromConfiguration(configuration);
+        Assert.Equal("ollama", settings.Provider);
+        Assert.Equal("http://localhost:11434/v1/", settings.BaseUrl);
+        Assert.False(settings.UseMockLlm);
     }
 }

@@ -18,4 +18,8 @@ public sealed class ChatRequest
     [JsonPropertyName("persona_id")]
     [StringLength(128, MinimumLength = 1)]
     public string? PersonaId { get; init; }
+
+    [JsonPropertyName("model_id")]
+    [StringLength(128, MinimumLength = 1)]
+    public string? ModelId { get; init; }
 }

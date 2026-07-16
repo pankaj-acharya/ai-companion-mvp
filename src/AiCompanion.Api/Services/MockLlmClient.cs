@@ -11,9 +11,14 @@ public sealed class MockLlmClient : ILlmClient
         return Task.FromResult(new LlmResult(text, tokens));
     }
 
-    public async IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, CancellationToken cancellationToken)
     {
         var text = $"mock-reply:{persona}:{message}";
+        return StreamChunks(text, cancellationToken);
+    }
+
+    private static async IAsyncEnumerable<string> StreamChunks(string text, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         foreach (var chunk in text.Split(':', StringSplitOptions.None))
         {
             cancellationToken.ThrowIfCancellationRequested();
