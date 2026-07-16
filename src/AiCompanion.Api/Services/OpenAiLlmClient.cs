@@ -11,12 +11,6 @@ public sealed class OpenAiLlmClient(HttpClient httpClient, AppSettings settings,
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    public Task<LlmResult> GenerateAsync(string message, string persona, CancellationToken cancellationToken)
-        => GenerateAsync(message, persona, cancellationToken, null);
-
-    public IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, CancellationToken cancellationToken)
-        => StreamGenerateAsync(message, persona, cancellationToken, null);
-
     public async Task<LlmResult> GenerateAsync(string message, string persona, CancellationToken cancellationToken, string? modelId = null)
     {
         if (UseResponsesApi(modelId))

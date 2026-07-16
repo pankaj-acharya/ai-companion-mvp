@@ -72,6 +72,35 @@ public sealed class OpenAiLlmClientTests
     }
 
     [Fact]
+    public async Task GenerateAsyncUsesExplicitModelOverride()
+    {
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""
+            {
+              "output_text": "hello from override",
+              "usage": {
+                "total_tokens": 7
+              }
+            }
+            """, Encoding.UTF8, "application/json")
+        });
+        using var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.com/v1/")
+        };
+        var settings = new AppSettings("openai", "https://api.openai.com/v1/", "test-key", "gpt-4o", 0.3, 512, false, "Data Source=test.db");
+        var sut = new OpenAiLlmClient(client, settings, NullLogger<OpenAiLlmClient>.Instance);
+
+        var result = await sut.GenerateAsync("hello", "Supportive Friend", CancellationToken.None, "gpt-5-mini");
+
+        Assert.Equal("https://api.openai.com/v1/responses", handler.Requests.Single().RequestUri?.ToString());
+        Assert.Contains("\"model\":\"gpt-5-mini\"", handler.RequestBodies.Single(), StringComparison.Ordinal);
+        Assert.Equal("hello from override", result.Text);
+        Assert.Equal(7, result.TokensUsed);
+    }
+
+    [Fact]
     public async Task GenerateAsyncExtractsTextWhenChatCompletionContentIsArray()
     {
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
@@ -175,13 +204,13 @@ public sealed class OpenAiLlmClientTests
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler
     {
         public List<HttpRequestMessage> Requests { get; } = [];
-      public List<string> RequestBodies { get; } = [];
+        public List<string> RequestBodies { get; } = [];
 
-      protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-        RequestBodies.Add(request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
-        return responseFactory(request);
+            RequestBodies.Add(request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
+            return responseFactory(request);
         }
     }
 }

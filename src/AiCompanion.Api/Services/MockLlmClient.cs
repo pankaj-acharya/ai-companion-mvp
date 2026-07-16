@@ -4,14 +4,14 @@ namespace AiCompanion.Api.Services;
 
 public sealed class MockLlmClient : ILlmClient
 {
-    public Task<LlmResult> GenerateAsync(string message, string persona, CancellationToken cancellationToken)
+    public Task<LlmResult> GenerateAsync(string message, string persona, CancellationToken cancellationToken, string? modelId = null)
     {
         var text = $"mock-reply:{persona}:{message}";
         var tokens = CountTokens(message);
         return Task.FromResult(new LlmResult(text, tokens));
     }
 
-    public IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, CancellationToken cancellationToken)
+    public IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, CancellationToken cancellationToken, string? modelId = null)
     {
         var text = $"mock-reply:{persona}:{message}";
         return StreamChunks(text, cancellationToken);

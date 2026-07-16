@@ -56,12 +56,12 @@ public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>, I
 
     private sealed class TestLlmClient : ILlmClient
     {
-        public Task<LlmResult> GenerateAsync(string message, string persona, CancellationToken cancellationToken)
+        public Task<LlmResult> GenerateAsync(string message, string persona, CancellationToken cancellationToken, string? modelId = null)
         {
             return Task.FromResult(new LlmResult($"reply:{persona}:{message}", 11));
         }
 
-        public async IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, [EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, [EnumeratorCancellation] CancellationToken cancellationToken, string? modelId = null)
         {
             foreach (var item in $"reply:{persona}:{message}".Split(':', StringSplitOptions.None))
             {
