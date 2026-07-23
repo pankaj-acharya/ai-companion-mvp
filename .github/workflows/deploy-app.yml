@@ -1,0 +1,132 @@
+name: Deploy App
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - prod
+      azure_subscription_id:
+        description: "Optional override subscription ID for this run"
+        required: false
+        default: ""
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - src/**
+      - .github/workflows/deploy-app.yml
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy_app:
+    runs-on: ubuntu-latest
+    environment: ${{ vars.AZURE_GITHUB_ENVIRONMENT || 'azure-deploy' }}
+
+    env:
+      ARM_USE_OIDC: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build publish package
+        run: |
+          dotnet restore AiCompanionMvp.sln
+          dotnet publish src/AiCompanion.Api/AiCompanion.Api.csproj -c Release -o publish
+          cd publish
+          zip -r ../app.zip .
+
+      - name: Resolve Azure auth and target subscription
+        id: azure_target
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TARGET_ENV="${{ github.event.inputs.environment }}"
+            INPUT_SUBSCRIPTION_ID="${{ github.event.inputs.azure_subscription_id }}"
+          else
+            TARGET_ENV="dev"
+            INPUT_SUBSCRIPTION_ID=""
+          fi
+
+          if [[ "$TARGET_ENV" == "prod" ]]; then
+            BACKEND_KEY="${{ vars.TF_BACKEND_STATE_KEY_PROD }}"
+            DEFAULT_SUBSCRIPTION_ID="${{ vars.AZURE_SUBSCRIPTION_ID_PROD || secrets.AZURE_SUBSCRIPTION_ID }}"
+          else
+            BACKEND_KEY="${{ vars.TF_BACKEND_STATE_KEY_DEV }}"
+            DEFAULT_SUBSCRIPTION_ID="${{ vars.AZURE_SUBSCRIPTION_ID_DEV || secrets.AZURE_SUBSCRIPTION_ID }}"
+          fi
+
+          CLIENT_ID="${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}"
+          TENANT_ID="${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}"
+          SUBSCRIPTION_ID="$INPUT_SUBSCRIPTION_ID"
+          if [[ -z "$SUBSCRIPTION_ID" ]]; then
+            SUBSCRIPTION_ID="$DEFAULT_SUBSCRIPTION_ID"
+          fi
+
+          if [[ -z "$CLIENT_ID" || -z "$TENANT_ID" || -z "$SUBSCRIPTION_ID" ]]; then
+            echo "Missing Azure auth config. Set secrets or variables for AZURE_CLIENT_ID, AZURE_TENANT_ID, and subscription id."
+            exit 1
+          fi
+
+          echo "target_env=$TARGET_ENV" >> "$GITHUB_OUTPUT"
+          echo "backend_key=$BACKEND_KEY" >> "$GITHUB_OUTPUT"
+          echo "client_id=$CLIENT_ID" >> "$GITHUB_OUTPUT"
+          echo "tenant_id=$TENANT_ID" >> "$GITHUB_OUTPUT"
+          echo "subscription_id=$SUBSCRIPTION_ID" >> "$GITHUB_OUTPUT"
+
+          echo "ARM_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+          echo "ARM_TENANT_ID=$TENANT_ID" >> "$GITHUB_ENV"
+          echo "ARM_SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> "$GITHUB_ENV"
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ steps.azure_target.outputs.client_id }}
+          tenant-id: ${{ steps.azure_target.outputs.tenant_id }}
+          subscription-id: ${{ steps.azure_target.outputs.subscription_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Read app target from Terraform state
+        id: tfout
+        shell: bash
+        working-directory: infrastructure/terraform
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
+            -backend-config="key=${{ steps.azure_target.outputs.backend_key }}"
+          echo "resource_group_name=$(terraform output -raw resource_group_name)" >> "$GITHUB_OUTPUT"
+          echo "app_service_name=$(terraform output -raw app_service_name)" >> "$GITHUB_OUTPUT"
+          echo "app_service_url=$(terraform output -raw app_service_url)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy zip package
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.tfout.outputs.app_service_name }}
+          package: app.zip
+
+      - name: Verify health endpoint
+        shell: bash
+        run: |
+          APP_URL="${{ steps.tfout.outputs.app_service_url }}"
+          curl --retry 6 --retry-delay 10 --retry-all-errors -f "$APP_URL/health"

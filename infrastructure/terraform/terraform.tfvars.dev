@@ -1,0 +1,19 @@
+project_name         = "aicomp"
+environment          = "dev"
+location             = "eastus"
+app_service_sku_name = "B1"
+
+# Keep mock mode true by default for cost-safe MVP deployments.
+use_mock_llm = true
+llm_provider = "openai"
+openai_model = "gpt-4o"
+
+# Optional: set only when using a non-default endpoint.
+llm_base_url = ""
+
+# Set this via CLI var or pipeline secret when use_mock_llm = false.
+openai_api_key = ""
+
+tags = {
+  owner = "personal-subscription"
+}

@@ -1,0 +1,6 @@
+# One-time Terraform backend bootstrap values.
+# Create these resources once and keep this file out of source control if you customize it.
+resource_group_name  = "rg-aicomp-tfstate"
+storage_account_name = "aicomptfstate12345"
+container_name       = "tfstate"
+key                  = "ai-companion-mvp-dev.tfstate"
