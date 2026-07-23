@@ -41,6 +41,63 @@ internal static class ChatEndpointHelpers
         });
     }
 
+    public static void AddMemoryAuditEvent(
+        AppDbContext db,
+        string userId,
+        string action,
+        int? memoryEntryId = null,
+        string? details = null)
+    {
+        db.MemoryAuditEvents.Add(new MemoryAuditEvent
+        {
+            UserId = userId,
+            Action = action,
+            MemoryEntryId = memoryEntryId,
+            Details = details,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+    }
+
+    public static async Task<bool> IsMemoryConsentEnabledAsync(AppDbContext db, string userId, CancellationToken cancellationToken)
+    {
+        var consent = await db.MemoryConsents
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        return consent?.IsEnabled ?? false;
+    }
+
+    public static async Task<(string prompt, int injectedMemoryCount)> BuildPromptWithApprovedMemoryAsync(
+        AppDbContext db,
+        string userId,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsMemoryConsentEnabledAsync(db, userId, cancellationToken))
+        {
+            return (message, 0);
+        }
+
+        var memories = await db.MemoryEntries
+            .AsNoTracking()
+            .Where(item => item.UserId == userId && item.IsApproved)
+            .OrderByDescending(item => item.Id)
+            .Take(8)
+            .Select(item => new { item.Scope, item.Content })
+            .ToListAsync(cancellationToken);
+
+        if (memories.Count == 0)
+        {
+            return (message, 0);
+        }
+
+        var memoryLines = string.Join(
+            Environment.NewLine,
+            memories.Select(item => $"- [{item.Scope}] {item.Content}"));
+
+        var prompt = $"Use this approved user memory for personalization when relevant:{Environment.NewLine}{memoryLines}{Environment.NewLine}{Environment.NewLine}User message: {message}";
+        return (prompt, memories.Count);
+    }
+
     public static Dictionary<string, string[]>? Validate<T>(T payload)
     {
         var validationResults = new List<ValidationResult>();

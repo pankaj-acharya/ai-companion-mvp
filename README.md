@@ -15,6 +15,12 @@
 ## API docs
 - `http://localhost:8000/docs`
 
+## Memory service endpoints
+- `PUT /api/v1/memory/consent` to enable/disable consent-based memory.
+- `POST /api/v1/memory` to save approved short/long-term memory (consent required).
+- `GET /api/v1/memory` and `DELETE /api/v1/memory/{id}` to view/delete memory.
+- `GET /api/v1/memory/audit` for memory audit events.
+
 ## Web UI
 - `http://localhost:8000/app/`
 - Enter any `user_id` and `session_id` values to exercise the local MVP flows.
@@ -22,4 +28,3 @@
 
 ## Run tests
 - `dotnet test AiCompanionMvp.sln`
-
