@@ -113,6 +113,8 @@ internal static class MemoryEndpointHandler
             UpdatedAt = now,
         };
 
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+
         db.MemoryEntries.Add(memoryEntry);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -122,8 +124,9 @@ internal static class MemoryEndpointHandler
             "memory_created",
             memoryEntryId: memoryEntry.Id,
             details: memoryEntry.Scope);
-        await db.SaveChangesAsync(cancellationToken);
 
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
         return Results.Ok(new MemoryItemResponse
         {
             Id = memoryEntry.Id,
