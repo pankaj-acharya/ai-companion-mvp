@@ -28,3 +28,16 @@
 
 ## Run tests
 - `dotnet test AiCompanionMvp.sln`
+
+## Infrastructure as Code
+- Terraform files are in `infrastructure/terraform`.
+- Infrastructure deployment docs are in `infrastructure/docs/DEPLOYMENT_GUIDE.md`.
+- Backend bootstrap and OIDC setup scripts are in `infrastructure/scripts`.
+
+## Pipelines
+- Pipeline notes are in `pipelines/README.md`.
+- Executable GitHub workflows are in `.github/workflows`:
+   - `build-app.yml`
+   - `terraform-validate-plan.yml`
+   - `deploy-infra.yml`
+   - `deploy-app.yml`
