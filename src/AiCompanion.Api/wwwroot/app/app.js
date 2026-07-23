@@ -579,8 +579,20 @@ function renderMemoryList(items) {
     for (const item of items) {
         const listItem = document.createElement("li");
         listItem.className = "list-group-item d-flex justify-content-between align-items-start gap-2";
-        listItem.innerHTML = `<div><div class="fw-semibold">${item.scope}</div><div class="small">${item.content}</div></div>`;
 
+        const contentWrapper = document.createElement("div");
+
+        const scopeElement = document.createElement("div");
+        scopeElement.className = "fw-semibold";
+        scopeElement.textContent = item.scope;
+
+        const contentElement = document.createElement("div");
+        contentElement.className = "small";
+        contentElement.textContent = item.content;
+
+        contentWrapper.appendChild(scopeElement);
+        contentWrapper.appendChild(contentElement);
+        listItem.appendChild(contentWrapper);
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";
         deleteButton.className = "btn btn-sm btn-outline-danger";
