@@ -64,6 +64,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+    DbSchemaUpgrader.EnsureMemorySchema(db);
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

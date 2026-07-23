@@ -81,12 +81,17 @@ internal static class WebSocketChatEndpointHandler
             var persona = string.IsNullOrWhiteSpace(payload.PersonaId) ? LlmDefaults.DefaultPersona : payload.PersonaId;
             var modelId = string.IsNullOrWhiteSpace(payload.ModelId) ? null : payload.ModelId;
             ChatEndpointHelpers.AddMessage(db, sessionId, "user", payload.Message);
+            var promptResult = await ChatEndpointHelpers.BuildPromptWithApprovedMemoryAsync(db, userId, payload.Message, context.RequestAborted);
+            if (promptResult.injectedMemoryCount > 0)
+            {
+                ChatEndpointHelpers.AddMemoryAuditEvent(db, userId, "memory_used", details: $"injected_count={promptResult.injectedMemoryCount}");
+            }
 
             var tokenCount = 0;
             var chunks = new StringBuilder();
             try
             {
-                await foreach (var chunk in llm.StreamGenerateAsync(payload.Message, persona, context.RequestAborted, modelId))
+                await foreach (var chunk in llm.StreamGenerateAsync(promptResult.prompt, persona, context.RequestAborted, modelId))
                 {
                     tokenCount += 1;
                     chunks.Append(chunk);

@@ -30,7 +30,7 @@ public sealed class OpenAiLlmClient(HttpClient httpClient, AppSettings settings,
 
         var text = ExtractChatCompletionText(payload);
         WarnIfEmptyAssistantText("chat/completions", text, responseBody, modelId);
-        return new LlmResult(text, payload.Usage?.TotalTokens ?? 0);
+        return new LlmResult(text, payload.Usage?.EffectiveTotalTokens ?? 0);
     }
 
     public async IAsyncEnumerable<string> StreamGenerateAsync(string message, string persona, [EnumeratorCancellation] CancellationToken cancellationToken, string? modelId = null)
@@ -94,7 +94,7 @@ public sealed class OpenAiLlmClient(HttpClient httpClient, AppSettings settings,
 
         WarnIfEmptyAssistantText("responses", text, responseBody, modelId);
 
-        return new LlmResult(text, payload.Usage?.TotalTokens ?? 0);
+        return new LlmResult(text, payload.Usage?.EffectiveTotalTokens ?? 0);
     }
 
     private void LogRawJsonResponse(string message, string responseBody)
@@ -398,6 +398,15 @@ public sealed class OpenAiLlmClient(HttpClient httpClient, AppSettings settings,
     {
         [JsonPropertyName("total_tokens")]
         public int TotalTokens { get; init; }
+
+        [JsonPropertyName("input_tokens")]
+        public int InputTokens { get; init; }
+
+        [JsonPropertyName("output_tokens")]
+        public int OutputTokens { get; init; }
+
+        public int EffectiveTotalTokens =>
+            TotalTokens > 0 ? TotalTokens : InputTokens + OutputTokens;
     }
 
     private sealed class OpenAiResponseApiResponse

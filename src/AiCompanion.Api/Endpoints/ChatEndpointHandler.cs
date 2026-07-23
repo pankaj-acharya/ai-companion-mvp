@@ -36,10 +36,16 @@ internal static class ChatEndpointHandler
 
         ChatEndpointHelpers.AddMessage(db, payload.SessionId, "user", payload.Message);
 
+        var promptResult = await ChatEndpointHelpers.BuildPromptWithApprovedMemoryAsync(db, userId.userId!, payload.Message, cancellationToken);
+        if (promptResult.injectedMemoryCount > 0)
+        {
+            ChatEndpointHelpers.AddMemoryAuditEvent(db, userId.userId!, "memory_used", details: $"injected_count={promptResult.injectedMemoryCount}");
+        }
+
         LlmResult result;
         try
         {
-            result = await llm.GenerateAsync(payload.Message, persona, cancellationToken, modelId);
+            result = await llm.GenerateAsync(promptResult.prompt, persona, cancellationToken, modelId);
         }
         catch (HttpRequestException ex)
         {

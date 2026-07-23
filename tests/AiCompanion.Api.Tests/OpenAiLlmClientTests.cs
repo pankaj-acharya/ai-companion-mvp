@@ -16,6 +16,8 @@ public sealed class OpenAiLlmClientTests
             {
               "output_text": "hello from gpt-5",
               "usage": {
+                "input_tokens": 10,
+                "output_tokens": 32,
                 "total_tokens": 42
               }
             }
@@ -80,6 +82,8 @@ public sealed class OpenAiLlmClientTests
             {
               "output_text": "hello from override",
               "usage": {
+                "input_tokens": 4,
+                "output_tokens": 3,
                 "total_tokens": 7
               }
             }
@@ -136,6 +140,52 @@ public sealed class OpenAiLlmClientTests
 
         Assert.Equal("hello from array content", result.Text);
         Assert.Equal(19, result.TokensUsed);
+    }
+
+    [Fact]
+    public async Task GenerateAsyncExtractsTextFromResponsesApiOutputArray()
+    {
+        // Simulates the real Responses API shape: output_text is absent (e.g. when reasoning
+        // tokens are present) and text must be extracted from the output array fallback.
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""
+            {
+              "output": [
+                {
+                  "type": "reasoning",
+                  "id": "rs_abc"
+                },
+                {
+                  "type": "message",
+                  "role": "assistant",
+                  "content": [
+                    {
+                      "type": "output_text",
+                      "text": "hello from output array"
+                    }
+                  ]
+                }
+              ],
+              "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_tokens": 15
+              }
+            }
+            """, Encoding.UTF8, "application/json")
+        });
+        using var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.com/v1/")
+        };
+        var settings = new AppSettings("openai", "https://api.openai.com/v1/", "test-key", "gpt-5", 0.3, 512, false, "Data Source=test.db");
+        var sut = new OpenAiLlmClient(client, settings, NullLogger<OpenAiLlmClient>.Instance);
+
+        var result = await sut.GenerateAsync("hello", "Supportive Friend", CancellationToken.None);
+
+        Assert.Equal("hello from output array", result.Text);
+        Assert.Equal(15, result.TokensUsed);
     }
 
     [Fact]

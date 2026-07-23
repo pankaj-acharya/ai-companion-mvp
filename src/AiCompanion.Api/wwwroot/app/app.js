@@ -2,8 +2,16 @@ const elements = {
     chatForm: document.getElementById("chatForm"),
     clearMessagesButton: document.getElementById("clearMessagesButton"),
     debugMode: document.getElementById("debugMode"),
+    addMemoryButton: document.getElementById("addMemoryButton"),
     loadHistoryButton: document.getElementById("loadHistoryButton"),
+    loadMemoryButton: document.getElementById("loadMemoryButton"),
+    loadAuditButton: document.getElementById("loadAuditButton"),
     messageInput: document.getElementById("messageInput"),
+    memoryAuditList: document.getElementById("memoryAuditList"),
+    memoryConsent: document.getElementById("memoryConsent"),
+    memoryContent: document.getElementById("memoryContent"),
+    memoryList: document.getElementById("memoryList"),
+    memoryScope: document.getElementById("memoryScope"),
     messages: document.getElementById("messages"),
     metaHistoryCount: document.getElementById("metaHistoryCount"),
     metaSession: document.getElementById("metaSession"),
@@ -51,10 +59,15 @@ function initialize() {
     syncSessionMeta();
     updateModeLabel();
     updatePersonaTip();
+    loadMemoryConsent();
 
     elements.streamMode.addEventListener("change", updateModeLabel);
     elements.personaId.addEventListener("change", updatePersonaTip);
     elements.debugMode.addEventListener("change", handleDebugModeChange);
+    elements.memoryConsent.addEventListener("change", handleMemoryConsentChange);
+    elements.addMemoryButton.addEventListener("click", addMemory);
+    elements.loadMemoryButton.addEventListener("click", loadMemory);
+    elements.loadAuditButton.addEventListener("click", loadMemoryAudit);
     elements.sessionId.addEventListener("input", syncSessionMeta);
     elements.messageInput.addEventListener("keydown", handleComposerKeydown);
     elements.clearMessagesButton.addEventListener("click", () => {
@@ -83,6 +96,48 @@ function handleDebugModeChange() {
 
 function isDebugModeEnabled() {
     return elements.debugMode.checked;
+}
+
+async function loadMemoryConsent() {
+    const config = readConfig();
+
+    try {
+        const response = await fetch("/api/v1/memory/consent", {
+            headers: authHeaders(config.userId)
+        });
+        const body = await readJson(response);
+        if (!response.ok) {
+            throw new Error(extractApiError(body, "Failed to load memory consent."));
+        }
+
+        elements.memoryConsent.checked = body?.enabled === true;
+    } catch (error) {
+        setStatus(formatError(error), "danger");
+    }
+}
+
+async function handleMemoryConsentChange() {
+    const config = readConfig();
+
+    try {
+        const response = await fetch("/api/v1/memory/consent", {
+            method: "PUT",
+            headers: {
+                ...authHeaders(config.userId),
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ enabled: elements.memoryConsent.checked })
+        });
+        const body = await readJson(response);
+        if (!response.ok) {
+            throw new Error(extractApiError(body, "Failed to update memory consent."));
+        }
+
+        setStatus(`Memory consent ${body.enabled ? "enabled" : "disabled"}.`, "success");
+    } catch (error) {
+        elements.memoryConsent.checked = !elements.memoryConsent.checked;
+        setStatus(formatError(error), "danger");
+    }
 }
 
 function handleComposerKeydown(event) {
@@ -156,7 +211,7 @@ async function sendRestMessage(config, message) {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${config.userId}`
+            ...authHeaders(config.userId)
         },
         body: JSON.stringify({
             session_id: config.sessionId,
@@ -257,9 +312,7 @@ async function loadHistory() {
     try {
         const url = `/api/v1/chat/history/${encodeURIComponent(config.sessionId)}?page=1&page_size=50`;
         const response = await fetch(url, {
-            headers: {
-                "Authorization": `Bearer ${config.userId}`
-            }
+            headers: authHeaders(config.userId)
         });
 
         const body = await readJson(response);
@@ -287,6 +340,99 @@ async function loadHistory() {
         setStatus(formatError(error), "danger");
     } finally {
         setBusy(false);
+    }
+}
+
+async function addMemory() {
+    const config = readConfig();
+    const content = elements.memoryContent.value.trim();
+    if (!content) {
+        setStatus("Memory content is required.", "warning");
+        return;
+    }
+
+    setBusy(true);
+    try {
+        const response = await fetch("/api/v1/memory", {
+            method: "POST",
+            headers: {
+                ...authHeaders(config.userId),
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                scope: elements.memoryScope.value,
+                content,
+                is_approved: true
+            })
+        });
+        const body = await readJson(response);
+        if (!response.ok) {
+            throw new Error(extractApiError(body, "Failed to save memory."));
+        }
+
+        elements.memoryContent.value = "";
+        setStatus("Memory saved.", "success");
+        await loadMemory();
+    } catch (error) {
+        setStatus(formatError(error), "danger");
+    } finally {
+        setBusy(false);
+    }
+}
+
+async function loadMemory() {
+    const config = readConfig();
+    try {
+        const response = await fetch("/api/v1/memory?approved_only=true", {
+            headers: authHeaders(config.userId)
+        });
+        const body = await readJson(response);
+        if (!response.ok) {
+            throw new Error(extractApiError(body, "Failed to load memory."));
+        }
+
+        renderMemoryList(Array.isArray(body?.items) ? body.items : []);
+        setStatus("Memory loaded.", "success");
+    } catch (error) {
+        setStatus(formatError(error), "danger");
+    }
+}
+
+async function deleteMemory(id) {
+    const config = readConfig();
+
+    try {
+        const response = await fetch(`/api/v1/memory/${encodeURIComponent(id)}`, {
+            method: "DELETE",
+            headers: authHeaders(config.userId)
+        });
+        const body = await readJson(response);
+        if (!response.ok) {
+            throw new Error(extractApiError(body, "Failed to delete memory."));
+        }
+
+        await loadMemory();
+        setStatus("Memory deleted.", "success");
+    } catch (error) {
+        setStatus(formatError(error), "danger");
+    }
+}
+
+async function loadMemoryAudit() {
+    const config = readConfig();
+    try {
+        const response = await fetch("/api/v1/memory/audit?page=1&page_size=20", {
+            headers: authHeaders(config.userId)
+        });
+        const body = await readJson(response);
+        if (!response.ok) {
+            throw new Error(extractApiError(body, "Failed to load memory audit."));
+        }
+
+        renderAuditList(Array.isArray(body?.events) ? body.events : []);
+        setStatus("Memory audit loaded.", "success");
+    } catch (error) {
+        setStatus(formatError(error), "danger");
     }
 }
 
@@ -324,6 +470,9 @@ function scrollMessagesToBottom() {
 function setBusy(isBusy) {
     elements.sendButton.disabled = isBusy;
     elements.loadHistoryButton.disabled = isBusy;
+    elements.addMemoryButton.disabled = isBusy;
+    elements.loadMemoryButton.disabled = isBusy;
+    elements.loadAuditButton.disabled = isBusy;
     elements.streamMode.disabled = isBusy;
 }
 
@@ -343,6 +492,12 @@ function readConfig() {
         personaId: elements.personaId.value.trim(),
         modelId: elements.modelId.value.trim(),
         streaming: elements.streamMode.checked
+    };
+}
+
+function authHeaders(userId) {
+    return {
+        "Authorization": `Bearer ${userId}`
     };
 }
 
@@ -411,6 +566,52 @@ function formatError(error) {
     return error instanceof Error ? error.message : String(error);
 }
 
+function renderMemoryList(items) {
+    elements.memoryList.innerHTML = "";
+    if (items.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "list-group-item small text-secondary";
+        empty.textContent = "No approved memory saved yet.";
+        elements.memoryList.appendChild(empty);
+        return;
+    }
+
+    for (const item of items) {
+        const listItem = document.createElement("li");
+        listItem.className = "list-group-item d-flex justify-content-between align-items-start gap-2";
+        listItem.innerHTML = `<div><div class="fw-semibold">${item.scope}</div><div class="small">${item.content}</div></div>`;
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "btn btn-sm btn-outline-danger";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", () => deleteMemory(item.id));
+        listItem.appendChild(deleteButton);
+
+        elements.memoryList.appendChild(listItem);
+    }
+}
+
+function renderAuditList(events) {
+    elements.memoryAuditList.innerHTML = "";
+    if (events.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "list-group-item small text-secondary";
+        empty.textContent = "No audit events yet.";
+        elements.memoryAuditList.appendChild(empty);
+        return;
+    }
+
+    for (const event of events) {
+        const listItem = document.createElement("li");
+        listItem.className = "list-group-item";
+        const createdAt = new Date(event.created_at).toLocaleString();
+        const details = event.details ? ` (${event.details})` : "";
+        listItem.textContent = `${createdAt} - ${event.action}${details}`;
+        elements.memoryAuditList.appendChild(listItem);
+    }
+}
+
 function toTitleCase(value) {
     return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -427,11 +628,19 @@ function updatePersonaTip() {
 
 function hasRequiredElements() {
     const requiredKeys = [
+        "addMemoryButton",
         "chatForm",
         "clearMessagesButton",
         "debugMode",
         "loadHistoryButton",
+        "loadMemoryButton",
+        "loadAuditButton",
         "messageInput",
+        "memoryAuditList",
+        "memoryConsent",
+        "memoryContent",
+        "memoryList",
+        "memoryScope",
         "messages",
         "metaHistoryCount",
         "metaSession",
